@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Finanzas — panel personal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#12151A;
+    --surface:#1B2027;
+    --surface-2:#232933;
+    --border:#2A313C;
+    --text:#ECE9E2;
+    --text-dim:#8F98A3;
+    --positive:#5FB88F;
+    --debt:#C9A227;
+    --debito:#6C9BD1;
+    --danger:#D2665A;
+    --radius:14px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:'IBM Plex Sans',sans-serif;
+    min-height:100vh;
+    padding-bottom:env(safe-area-inset-bottom);
+  }
+  .display{font-family:'Space Grotesk',sans-serif;}
+  .mono{font-family:'IBM Plex Mono',monospace;}
+  #app{max-width:480px;margin:0 auto;min-height:100vh;display:flex;flex-direction:column;}
+  button{font-family:inherit;cursor:pointer;}
+  input,select{font-family:inherit;}
+  ::selection{background:var(--positive);color:#0B0D10;}
+
+  /* ---- Login ---- */
+  .login-screen{flex:1;display:flex;flex-direction:column;justify-content:center;padding:32px 24px;gap:24px;}
+  .login-screen h1{font-size:28px;margin:0 0 4px;letter-spacing:-0.02em;}
+  .login-screen p{color:var(--text-dim);margin:0;font-size:14px;}
+  .field{display:flex;flex-direction:column;gap:6px;}
+  .field label{font-size:12px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.06em;}
+  .field input{
+    background:var(--surface);border:1px solid var(--border);border-radius:10px;
+    padding:14px 14px;color:var(--text);font-size:16px;outline:none;
+  }
+  .field input:focus{border-color:var(--positive);}
+  .btn-primary{
+    background:var(--positive);color:#0B0D10;border:none;border-radius:10px;
+    padding:14px;font-size:15px;font-weight:600;margin-top:4px;
+  }
+  .btn-primary:active{transform:scale(0.98);}
+  .error-msg{color:var(--danger);font-size:13px;min-height:16px;}
+
+  /* ---- Shell / nav ---- */
+  .topbar{
+    display:flex;justify-content:space-between;align-items:center;
+    padding:18px 20px 8px;
+  }
+  .topbar .logo{font-size:15px;color:var(--text-dim);letter-spacing:0.04em;}
+  .logout-btn{background:none;border:none;color:var(--text-dim);font-size:13px;text-decoration:underline;}
+  main{flex:1;padding:8px 20px 100px;}
+  nav.tabs{
+    position:fixed;bottom:0;left:0;right:0;
+    max-width:480px;margin:0 auto;
+    background:var(--surface);border-top:1px solid var(--border);
+    display:flex;padding-bottom:env(safe-area-inset-bottom);
+    z-index:10;
+  }
+  nav.tabs button{
+    flex:1;background:none;border:none;color:var(--text-dim);
+    padding:12px 4px 10px;font-size:11px;display:flex;flex-direction:column;
+    align-items:center;gap:4px;letter-spacing:0.02em;
+  }
+  nav.tabs button .ico{font-size:18px;}
+  nav.tabs button.active{color:var(--positive);}
+
+  .view{display:none;}
+  .view.active{display:block;animation:fade .15s ease;}
+  @keyframes fade{from{opacity:0}to{opacity:1}}
+
+  /* ---- Dashboard ---- */
+  .hero{
+    background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+    padding:22px 20px;margin-top:8px;position:relative;overflow:hidden;
+  }
+  .hero .label{font-size:12px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.08em;}
+  .hero .amount{font-size:40px;font-weight:600;margin-top:6px;letter-spacing:-0.01em;}
+  .hero .amount.pos{color:var(--positive);}
+  .hero .amount.neg{color:var(--danger);}
+  .hero .sub{font-size:13px;color:var(--text-dim);margin-top:10px;line-height:1.5;}
+
+  .hero-secondary{padding:16px 20px;margin-top:10px;}
+  .hero-secondary .amount{font-size:24px;margin-top:4px;}
+  .hero-secondary .sub{margin-top:6px;}
+  .bridge{font-size:12px;color:var(--debt);margin-top:8px;display:flex;align-items:center;gap:4px;}
+
+  .card{
+    background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+    padding:18px 20px;margin-top:14px;
+  }
+  .card h3{font-size:13px;margin:0 0 12px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.06em;font-weight:500;}
+  .row-between{display:flex;justify-content:space-between;align-items:baseline;}
+  .row-between + .row-between{margin-top:8px;}
+  .row-between .k{font-size:14px;color:var(--text-dim);}
+  .row-between .v{font-size:15px;font-weight:500;}
+
+  .catbar{margin-top:10px;}
+  .catbar-row{margin-bottom:10px;}
+  .catbar-row .catname{font-size:13px;display:flex;justify-content:space-between;margin-bottom:4px;}
+  .catbar-track{background:var(--surface-2);border-radius:6px;height:6px;overflow:hidden;}
+  .catbar-fill{background:var(--positive);height:100%;border-radius:6px;}
+
+  /* ---- Registrar ---- */
+  .chip-group{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;}
+  .chip{
+    background:var(--surface-2);border:1px solid var(--border);border-radius:20px;
+    padding:9px 14px;font-size:13px;color:var(--text-dim);
+  }
+  .chip.selected{background:var(--positive);border-color:var(--positive);color:#0B0D10;font-weight:600;}
+  .medio-group{display:flex;gap:8px;margin-top:6px;}
+  .medio-group .chip{flex:1;text-align:center;}
+  .medio-group .chip[data-medio="credito"].selected{background:var(--debt);border-color:var(--debt);}
+  .medio-group .chip[data-medio="debito"].selected{background:var(--debito);border-color:var(--debito);}
+  .amount-input{
+    width:100%;background:transparent;border:none;border-bottom:2px solid var(--border);
+    color:var(--text);font-size:36px;font-weight:600;padding:10px 0;outline:none;
+    font-family:'Space Grotesk',sans-serif;
+  }
+  .amount-input:focus{border-color:var(--positive);}
+  .field-note{margin-top:16px;}
+  .field-note textarea, .field-date input{
+    width:100%;background:var(--surface);border:1px solid var(--border);border-radius:10px;
+    padding:12px 14px;color:var(--text);font-size:14px;outline:none;resize:none;
+  }
+
+  /* ---- Historial (receipt style) ---- */
+  .receipt{
+    background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+    margin-top:10px;overflow:hidden;
+  }
+  .receipt::before{
+    content:"";display:block;height:6px;
+    background:repeating-linear-gradient(90deg, transparent 0 6px, var(--bg) 6px 12px);
+  }
+  .receipt-day{padding:12px 18px 4px;font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.06em;}
+  .receipt-item{
+    display:flex;justify-content:space-between;align-items:center;
+    padding:10px 18px;border-top:1px dashed var(--border);
+  }
+  .receipt-item .left{display:flex;flex-direction:column;gap:2px;}
+  .receipt-item .cat{font-size:14px;}
+  .receipt-item .meta{font-size:11px;color:var(--text-dim);}
+  .receipt-item .amt{font-size:15px;text-align:right;}
+  .badge{font-size:9px;padding:2px 6px;border-radius:4px;margin-left:6px;text-transform:uppercase;letter-spacing:0.04em;}
+  .badge.debito{background:rgba(108,155,209,0.18);color:var(--debito);}
+  .badge.efectivo{background:rgba(95,184,143,0.18);color:var(--positive);}
+  .badge.credito{background:rgba(201,162,39,0.18);color:var(--debt);}
+  .del-btn{background:none;border:none;color:var(--text-dim);font-size:16px;padding:4px 0 4px 12px;}
+  .empty-state{color:var(--text-dim);font-size:14px;text-align:center;padding:40px 20px;}
+
+  /* ---- Config ---- */
+  .config-field{margin-top:16px;}
+  .config-field label{font-size:13px;color:var(--text-dim);display:block;margin-bottom:6px;}
+  .config-field input{
+    width:100%;background:var(--surface);border:1px solid var(--border);border-radius:10px;
+    padding:12px 14px;color:var(--text);font-size:15px;outline:none;
+  }
+  .config-field input:focus{border-color:var(--positive);}
+  .btn-secondary{
+    background:var(--surface-2);color:var(--text);border:1px solid var(--border);border-radius:10px;
+    padding:13px;font-size:14px;font-weight:500;width:100%;margin-top:20px;
+  }
+  .toast{
+    position:fixed;bottom:90px;left:50%;transform:translateX(-50%);
+    background:var(--positive);color:#0B0D10;padding:10px 18px;border-radius:20px;
+    font-size:13px;font-weight:600;opacity:0;pointer-events:none;transition:opacity .2s;
+    z-index:20;
+  }
+  .toast.show{opacity:1;}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div class="toast" id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script>
+// ==== Configuración de conexión ====
+const SUPABASE_URL = 'https://ctfdxirqxiylvckuuoly.supabase.co';
+const SUPABASE_KEY = 'sb_publishable__fxIDIBPdJ0tUJM1woth7Q_COz7cBKz';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const CATEGORIAS = ['Comida','Transporte','Arriendo','Salud','Ocio','Otros'];
+const fmt = (n) => new Intl.NumberFormat('es-CL', {style:'currency', currency:'CLP', maximumFractionDigits:0}).format(n || 0);
+const app = document.getElementById('app');
+const toastEl = document.getElementById('toast');
+
+let state = {
+  user: null,
+  config: null,
+  gastos: [],
+  tab: 'dashboard',
+  form: { monto:'', categoria:'Comida', medio:'debito', fecha: todayStr(), nota:'' }
+};
+
+function todayStr(){ return new Date().toISOString().slice(0,10); }
+function showToast(msg){
+  toastEl.textContent = msg;
+  toastEl.classList.add('show');
+  setTimeout(()=>toastEl.classList.remove('show'), 1800);
+}
+
+// ==== Auth ====
+async function init(){
+  const { data } = await sb.auth.getSession();
+  if (data.session){
+    state.user = data.session.user;
+    await loadAll();
+  }
+  render();
+}
+
+async function login(email, password){
+  const errEl = document.getElementById('login-error');
+  errEl.textContent = '';
+  const { data, error } = await sb.auth.signInWithPassword({ email, password });
+  if (error){ errEl.textContent = 'No se pudo iniciar sesión. Revisa tu correo y contraseña.'; return; }
+  state.user = data.user;
+  await loadAll();
+  render();
+}
+
+async function logout(){
+  await sb.auth.signOut();
+  state.user = null; state.config = null; state.gastos = [];
+  render();
+}
+
+// ==== Data ====
+async function loadAll(){
+  const [{ data: cfg }, { data: gastos }] = await Promise.all([
+    sb.from('configuracion').select('*').maybeSingle(),
+    sb.from('gastos').select('*').order('fecha', {ascending:false}).order('created_at', {ascending:false})
+  ]);
+  state.config = cfg || null;
+  state.gastos = gastos || [];
+}
+
+async function saveConfig(payload){
+  const { error } = await sb.from('configuracion').upsert(
+    { ...payload, user_id: state.user.id },
+    { onConflict: 'user_id' }
+  );
+  if (error){ showToast('Error: ' + error.message); console.error(error); return; }
+  await loadAll();
+  showToast('Configuración guardada');
+  render();
+}
+
+async function addGasto(g){
+  const { error } = await sb.from('gastos').insert({
+    monto: Number(g.monto),
+    categoria: g.categoria,
+    medio_pago: g.medio,
+    fecha: g.fecha,
+    nota: g.nota || null,
+    user_id: state.user.id
+  });
+  if (error){ showToast('Error: ' + error.message); console.error(error); return; }
+  state.form = { monto:'', categoria:'Comida', medio:'debito', fecha: todayStr(), nota:'' };
+  await loadAll();
+  showToast('Gasto registrado');
+  state.tab = 'dashboard';
+  render();
+}
+
+async function deleteGasto(id){
+  const { error } = await sb.from('gastos').delete().eq('id', id);
+  if (error){ showToast('Error al eliminar'); return; }
+  await loadAll();
+  render();
+}
+
+// ==== Lógica financiera: ciclo de tarjeta ====
+function fechaPagoDeGasto(fechaGastoStr, corteDia, pagoDia){
+  const f = new Date(fechaGastoStr + 'T00:00:00');
+  let corte = new Date(f.getFullYear(), f.getMonth(), corteDia);
+  if (f.getDate() > corteDia) corte.setMonth(corte.getMonth() + 1);
+  let pago = new Date(corte.getFullYear(), corte.getMonth(), pagoDia);
+  if (pagoDia < corteDia) pago.setMonth(pago.getMonth() + 1);
+  while (pago <= corte) pago.setMonth(pago.getMonth() + 1);
+  return pago;
+}
+
+function calcularDeuda(){
+  const cfg = state.config;
+  const hoy = new Date(); hoy.setHours(0,0,0,0);
+  const manualMonto = Number(cfg?.deuda_manual_monto || 0);
+  const manualFecha = cfg?.deuda_manual_fecha || null;
+
+  if (!cfg || !cfg.tarjeta_corte_dia || !cfg.tarjeta_pago_dia){
+    return { total: manualMonto, proximo: manualFecha ? {fecha: manualFecha, monto: manualMonto} : null, configurado:false, manualMonto };
+  }
+  let total = manualMonto;
+  const porFecha = {};
+  if (manualMonto > 0 && manualFecha) porFecha[manualFecha] = manualMonto;
+  state.gastos.filter(g => g.medio_pago === 'credito').forEach(g => {
+    const pago = fechaPagoDeGasto(g.fecha, cfg.tarjeta_corte_dia, cfg.tarjeta_pago_dia);
+    if (pago >= hoy){
+      total += Number(g.monto);
+      const key = pago.toISOString().slice(0,10);
+      porFecha[key] = (porFecha[key]||0) + Number(g.monto);
+    }
+  });
+  const fechas = Object.keys(porFecha).sort();
+  const proximo = fechas.length ? { fecha: fechas[0], monto: porFecha[fechas[0]] } : null;
+  return { total, proximo, configurado:true, manualMonto };
+}
+
+function gastosDesdeUltimaActualizacion(){
+  const cfg = state.config;
+  if (!cfg) return 0;
+  const desde = new Date(cfg.saldo_actualizado_en);
+  return state.gastos
+    .filter(g => (g.medio_pago === 'debito' || g.medio_pago === 'efectivo') && new Date(g.created_at) >= desde)
+    .reduce((sum, g) => sum + Number(g.monto), 0);
+}
+
+function saldoReal(){
+  const saldo = Number(state.config?.saldo_actual || 0);
+  const gastado = gastosDesdeUltimaActualizacion();
+  return saldo - gastado;
+}
+
+function disponibleReal(){
+  const deuda = calcularDeuda();
+  return saldoReal() - deuda.total;
+}
+
+function gastoDelMesPorCategoria(){
+  const hoy = new Date();
+  const ym = hoy.toISOString().slice(0,7);
+  const totales = {};
+  state.gastos.filter(g => g.fecha.startsWith(ym)).forEach(g => {
+    totales[g.categoria] = (totales[g.categoria]||0) + Number(g.monto);
+  });
+  return totales;
+}
+
+// ==== Render ====
+function render(){
+  app.innerHTML = '';
+  if (!state.user){
+    app.appendChild(renderLogin());
+    return;
+  }
+  const shell = document.createElement('div');
+  shell.style.display='flex'; shell.style.flexDirection='column'; shell.style.minHeight='100vh';
+  shell.innerHTML = `
+    <div class="topbar">
+      <span class="logo display">FINANZAS</span>
+      <button class="logout-btn" id="logout-btn">Salir</button>
+    </div>
+    <main id="main"></main>
+    <nav class="tabs">
+      <button data-tab="dashboard" class="${state.tab==='dashboard'?'active':''}"><span class="ico">◆</span>Panel</button>
+      <button data-tab="registrar" class="${state.tab==='registrar'?'active':''}"><span class="ico">+</span>Registrar</button>
+      <button data-tab="historial" class="${state.tab==='historial'?'active':''}"><span class="ico">≡</span>Historial</button>
+      <button data-tab="config" class="${state.tab==='config'?'active':''}"><span class="ico">⚙</span>Ajustes</button>
+    </nav>
+  `;
+  app.appendChild(shell);
+  document.getElementById('logout-btn').onclick = logout;
+  shell.querySelectorAll('nav.tabs button').forEach(b=>{
+    b.onclick = () => { state.tab = b.dataset.tab; render(); };
+  });
+
+  const main = document.getElementById('main');
+  if (state.tab === 'dashboard') main.appendChild(renderDashboard());
+  if (state.tab === 'registrar') main.appendChild(renderRegistrar());
+  if (state.tab === 'historial') main.appendChild(renderHistorial());
+  if (state.tab === 'config') main.appendChild(renderConfig());
+}
+
+function renderLogin(){
+  const el = document.createElement('div');
+  el.className = 'login-screen';
+  el.innerHTML = `
+    <div>
+      <h1 class="display">Finanzas</h1>
+      <p>Tu panel personal. Inicia sesión con la cuenta que creaste en Supabase.</p>
+    </div>
+    <div class="field">
+      <label>Correo</label>
+      <input type="email" id="login-email" autocomplete="username">
+    </div>
+    <div class="field">
+      <label>Contraseña</label>
+      <input type="password" id="login-pass" autocomplete="current-password">
+    </div>
+    <div class="error-msg" id="login-error"></div>
+    <button class="btn-primary" id="login-btn">Entrar</button>
+  `;
+  el.querySelector('#login-btn').onclick = () => {
+    login(el.querySelector('#login-email').value.trim(), el.querySelector('#login-pass').value);
+  };
+  return el;
+}
+
+function renderDashboard(){
+  const el = document.createElement('div');
+  const disp = disponibleReal();
+  const real = saldoReal();
+  const deuda = calcularDeuda();
+  const gastado = gastosDesdeUltimaActualizacion();
+  const cats = gastoDelMesPorCategoria();
+  const maxCat = Math.max(1, ...Object.values(cats));
+
+  let catRows = Object.entries(cats).sort((a,b)=>b[1]-a[1]).map(([cat, monto]) => `
+    <div class="catbar-row">
+      <div class="catname"><span>${cat}</span><span class="mono">${fmt(monto)}</span></div>
+      <div class="catbar-track"><div class="catbar-fill" style="width:${(monto/maxCat*100).toFixed(0)}%"></div></div>
+    </div>
+  `).join('') || `<div class="empty-state">Aún no hay gastos este mes.</div>`;
+
+  el.innerHTML = `
+    <div class="hero">
+      <div class="label">Disponible después de tarjeta</div>
+      <div class="amount display ${disp>=0?'pos':'neg'}">${fmt(disp)}</div>
+      <div class="bridge">↓ resta ${fmt(deuda.total)} comprometido en tarjeta de crédito</div>
+    </div>
+
+    <div class="hero hero-secondary">
+      <div class="label">Saldo real en el banco</div>
+      <div class="amount display ${real>=0?'pos':'neg'}">${fmt(real)}</div>
+      <div class="sub">Saldo base ${fmt(state.config?.saldo_actual||0)} − gastos débito/efectivo ${fmt(gastado)}</div>
+    </div>
+
+    <div class="card">
+      <h3>Tarjeta de crédito</h3>
+      ${deuda.manualMonto > 0 ? `<div class="row-between"><span class="k">Sin registrar (manual)</span><span class="v mono">${fmt(deuda.manualMonto)}</span></div>` : ''}
+      ${!deuda.configurado ? `<div class="empty-state">Configura las fechas de tu tarjeta en Ajustes para ver el cálculo automático de los gastos que registres.</div>` : `
+        <div class="row-between"><span class="k">Deuda pendiente total</span><span class="v mono">${fmt(deuda.total)}</span></div>
+        ${deuda.proximo ? `<div class="row-between"><span class="k">Próximo pago</span><span class="v mono">${fmt(deuda.proximo.monto)} · ${new Date(deuda.proximo.fecha+'T00:00:00').toLocaleDateString('es-CL',{day:'2-digit',month:'short'})}</span></div>` : `<div class="row-between"><span class="k">Próximo pago</span><span class="v">Sin deuda pendiente</span></div>`}
+      `}
+    </div>
+
+    <div class="card">
+      <h3>Gastos de este mes por categoría</h3>
+      <div class="catbar">${catRows}</div>
+    </div>
+  `;
+  return el;
+}
+
+function renderRegistrar(){
+  const el = document.createElement('div');
+  const f = state.form;
+  el.innerHTML = `
+    <div class="card" style="margin-top:8px;">
+      <h3>Monto</h3>
+      <input class="amount-input" id="f-monto" type="number" inputmode="numeric" placeholder="$0" value="${f.monto}">
+
+      <h3 style="margin-top:22px;">Categoría</h3>
+      <div class="chip-group" id="f-categorias">
+        ${CATEGORIAS.map(c=>`<button type="button" class="chip ${f.categoria===c?'selected':''}" data-cat="${c}">${c}</button>`).join('')}
+      </div>
+
+      <h3 style="margin-top:22px;">Medio de pago</h3>
+      <div class="medio-group" id="f-medios">
+        <button type="button" class="chip ${f.medio==='debito'?'selected':''}" data-medio="debito">Débito</button>
+        <button type="button" class="chip ${f.medio==='efectivo'?'selected':''}" data-medio="efectivo">Efectivo</button>
+        <button type="button" class="chip ${f.medio==='credito'?'selected':''}" data-medio="credito">Crédito</button>
+      </div>
+
+      <div class="field-note field-date">
+        <h3 style="margin-top:22px;">Fecha</h3>
+        <input type="date" id="f-fecha" value="${f.fecha}">
+      </div>
+
+      <div class="field-note">
+        <h3>Nota (opcional)</h3>
+        <textarea id="f-nota" rows="2" placeholder="Ej: almuerzo con equipo">${f.nota}</textarea>
+      </div>
+
+      <button class="btn-primary" style="width:100%;margin-top:22px;" id="f-submit">Registrar gasto</button>
+    </div>
+  `;
+  el.querySelector('#f-monto').oninput = (e)=> f.monto = e.target.value;
+  el.querySelector('#f-nota').oninput = (e)=> f.nota = e.target.value;
+  el.querySelector('#f-fecha').oninput = (e)=> f.fecha = e.target.value;
+  el.querySelectorAll('#f-categorias .chip').forEach(b=>{
+    b.onclick = ()=>{ f.categoria = b.dataset.cat; render(); };
+  });
+  el.querySelectorAll('#f-medios .chip').forEach(b=>{
+    b.onclick = ()=>{ f.medio = b.dataset.medio; render(); };
+  });
+  el.querySelector('#f-submit').onclick = ()=>{
+    if (!f.monto || Number(f.monto) <= 0){ showToast('Ingresa un monto válido'); return; }
+    addGasto(f);
+  };
+  return el;
+}
+
+function renderHistorial(){
+  const el = document.createElement('div');
+  if (!state.gastos.length){
+    el.innerHTML = `<div class="receipt"><div class="empty-state">Todavía no registras gastos.</div></div>`;
+    return el;
+  }
+  const grupos = {};
+  state.gastos.forEach(g => { (grupos[g.fecha] = grupos[g.fecha] || []).push(g); });
+  const dias = Object.keys(grupos).sort().reverse();
+
+  el.innerHTML = `<div class="receipt">${dias.map(dia => `
+    <div class="receipt-day">${new Date(dia+'T00:00:00').toLocaleDateString('es-CL',{weekday:'long', day:'2-digit', month:'long'})}</div>
+    ${grupos[dia].map(g => `
+      <div class="receipt-item" data-id="${g.id}">
+        <div class="left">
+          <span class="cat">${g.categoria}<span class="badge ${g.medio_pago}">${g.medio_pago}</span></span>
+          ${g.nota ? `<span class="meta">${g.nota}</span>` : ''}
+        </div>
+        <div style="display:flex;align-items:center;">
+          <span class="amt mono">${fmt(g.monto)}</span>
+          <button class="del-btn" data-id="${g.id}">✕</button>
+        </div>
+      </div>
+    `).join('')}
+  `).join('')}</div>`;
+
+  el.querySelectorAll('.del-btn').forEach(b=>{
+    b.onclick = ()=>{ if (confirm('¿Eliminar este gasto?')) deleteGasto(b.dataset.id); };
+  });
+  return el;
+}
+
+function renderConfig(){
+  const el = document.createElement('div');
+  const c = state.config || {};
+  el.innerHTML = `
+    <div class="card" style="margin-top:8px;">
+      <h3>Saldo</h3>
+      <div class="config-field">
+        <label>Saldo de partida (desde este momento, cada gasto en débito/efectivo se resta automáticamente)</label>
+        <input type="number" id="c-saldo" value="${c.saldo_actual ?? ''}">
+      </div>
+      ${c.saldo_actualizado_en ? `<div class="row-between" style="margin-top:4px;"><span class="k">Última actualización</span><span class="v mono">${new Date(c.saldo_actualizado_en).toLocaleString('es-CL',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}</span></div>` : ''}
+    </div>
+
+    <div class="card">
+      <h3>Sueldo</h3>
+      <div class="config-field">
+        <label>Monto aproximado</label>
+        <input type="number" id="c-sueldo-monto" value="${c.sueldo_monto ?? ''}">
+      </div>
+      <div class="config-field">
+        <label>Día de pago del mes (1–31)</label>
+        <input type="number" min="1" max="31" id="c-sueldo-dia" value="${c.sueldo_dia ?? ''}">
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Tarjeta de crédito</h3>
+      <div class="config-field">
+        <label>Día de corte (cierre de ciclo)</label>
+        <input type="number" min="1" max="31" id="c-corte" value="${c.tarjeta_corte_dia ?? ''}">
+      </div>
+      <div class="config-field">
+        <label>Día de pago</label>
+        <input type="number" min="1" max="31" id="c-pago" value="${c.tarjeta_pago_dia ?? ''}">
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Deuda de tarjeta sin registrar</h3>
+      <p style="font-size:12px;color:var(--text-dim);margin:0 0 4px;">Para partir con tu deuda real (facturada o por facturar) sin registrar cada gasto antiguo uno por uno. Cuando la pagues, vuelve aquí y ponla en 0.</p>
+      <div class="config-field">
+        <label>Monto que ya sabes que vas a pagar</label>
+        <input type="number" id="c-deuda-manual" value="${c.deuda_manual_monto ?? 0}">
+      </div>
+      <div class="config-field">
+        <label>Fecha en que te la van a cobrar</label>
+        <input type="date" id="c-deuda-manual-fecha" value="${c.deuda_manual_fecha ?? ''}">
+      </div>
+    </div>
+
+    <button class="btn-primary" style="width:100%;" id="c-guardar">Guardar cambios</button>
+  `;
+  el.querySelector('#c-guardar').onclick = ()=>{
+    const nuevoSaldo = Number(el.querySelector('#c-saldo').value || 0);
+    const saldoCambio = nuevoSaldo !== Number(c.saldo_actual ?? 0);
+    saveConfig({
+      saldo_actual: nuevoSaldo,
+      saldo_actualizado_en: saldoCambio ? new Date().toISOString() : (c.saldo_actualizado_en || new Date().toISOString()),
+      sueldo_monto: el.querySelector('#c-sueldo-monto').value ? Number(el.querySelector('#c-sueldo-monto').value) : null,
+      sueldo_dia: el.querySelector('#c-sueldo-dia').value ? Number(el.querySelector('#c-sueldo-dia').value) : null,
+      tarjeta_corte_dia: el.querySelector('#c-corte').value ? Number(el.querySelector('#c-corte').value) : null,
+      tarjeta_pago_dia: el.querySelector('#c-pago').value ? Number(el.querySelector('#c-pago').value) : null,
+      deuda_manual_monto: Number(el.querySelector('#c-deuda-manual').value || 0),
+      deuda_manual_fecha: el.querySelector('#c-deuda-manual-fecha').value || null,
+    });
+  };
+  return el;
+}
+
+init();
+</script>
+</body>
+</html>
