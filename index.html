@@ -205,7 +205,7 @@ let state = {
   config: null,
   gastos: [],
   tab: 'dashboard',
-  form: { tipo:'gasto', monto:'', categoria:'Comida', categoriaOtro:'', medio:'debito', fecha: todayStr(), nota:'' }
+  form: { tipo:'gasto', monto:'', categoria:'Comida', categoriaOtro:'', medio:'debito', cuotas:1, fecha: todayStr(), nota:'' }
 };
 
 function todayStr(){ return new Date().toISOString().slice(0,10); }
@@ -269,12 +269,13 @@ async function addGasto(g){
     monto: Number(g.monto),
     categoria: g.tipo === 'ingreso' ? 'Ingreso' : categoriaFinal,
     medio_pago: g.tipo === 'ingreso' ? null : g.medio,
+    cuotas: (g.tipo === 'gasto' && g.medio === 'credito') ? Math.max(1, Number(g.cuotas || 1)) : 1,
     fecha: g.fecha,
     nota: g.nota || null,
     user_id: state.user.id
   });
   if (error){ showToast('Error: ' + error.message); console.error(error); return; }
-  state.form = { tipo:'gasto', monto:'', categoria:'Comida', categoriaOtro:'', medio:'debito', fecha: todayStr(), nota:'' };
+  state.form = { tipo:'gasto', monto:'', categoria:'Comida', categoriaOtro:'', medio:'debito', cuotas:1, fecha: todayStr(), nota:'' };
   await loadAll();
   showToast('Gasto registrado');
   state.tab = 'dashboard';
@@ -299,6 +300,13 @@ function fechaPagoDeGasto(fechaGastoStr, corteDia, pagoDia){
   return pago;
 }
 
+function totalUsadoTarjeta(){
+  const gastosCredito = state.gastos
+    .filter(g => g.medio_pago === 'credito')
+    .reduce((s,g)=> s + Number(g.monto), 0);
+  return gastosCredito + Number(state.config?.deuda_manual_monto || 0);
+}
+
 function calcularDeuda(){
   const cfg = state.config;
   const hoy = new Date(); hoy.setHours(0,0,0,0);
@@ -306,22 +314,31 @@ function calcularDeuda(){
   const manualFecha = cfg?.deuda_manual_fecha || null;
 
   if (!cfg || !cfg.tarjeta_corte_dia || !cfg.tarjeta_pago_dia){
-    return { total: manualMonto, proximo: manualFecha ? {fecha: manualFecha, monto: manualMonto} : null, configurado:false, manualMonto };
+    return { total: manualMonto, proximo: manualFecha ? {fecha: manualFecha, monto: manualMonto} : null, configurado:false, manualMonto, totalUsado: totalUsadoTarjeta() };
   }
   let total = manualMonto;
   const porFecha = {};
-  if (manualMonto > 0 && manualFecha) porFecha[manualFecha] = manualMonto;
+  if (manualMonto > 0 && manualFecha) porFecha[manualFecha] = (porFecha[manualFecha]||0) + manualMonto;
+
+  const reinicioEn = cfg.tarjeta_reiniciada_en || null;
   state.gastos.filter(g => g.medio_pago === 'credito').forEach(g => {
-    const pago = fechaPagoDeGasto(g.fecha, cfg.tarjeta_corte_dia, cfg.tarjeta_pago_dia);
-    if (pago >= hoy){
-      total += Number(g.monto);
-      const key = pago.toISOString().slice(0,10);
-      porFecha[key] = (porFecha[key]||0) + Number(g.monto);
+    if (reinicioEn && g.fecha < reinicioEn) return;
+    const cuotas = Math.max(1, Number(g.cuotas || 1));
+    const cuotaMonto = Number(g.monto) / cuotas;
+    const basePago = fechaPagoDeGasto(g.fecha, cfg.tarjeta_corte_dia, cfg.tarjeta_pago_dia);
+    for (let k = 0; k < cuotas; k++){
+      const pago = new Date(basePago);
+      pago.setMonth(pago.getMonth() + k);
+      if (pago >= hoy){
+        total += cuotaMonto;
+        const key = pago.toISOString().slice(0,10);
+        porFecha[key] = (porFecha[key]||0) + cuotaMonto;
+      }
     }
   });
   const fechas = Object.keys(porFecha).sort();
   const proximo = fechas.length ? { fecha: fechas[0], monto: porFecha[fechas[0]] } : null;
-  return { total, proximo, configurado:true, manualMonto };
+  return { total, proximo, configurado:true, manualMonto, totalUsado: totalUsadoTarjeta() };
 }
 
 function desgloseDesdeUltimaActualizacion(){
@@ -455,6 +472,7 @@ function renderDashboard(){
 
     <div class="card">
       <h3>Tarjeta de crédito</h3>
+      <div class="row-between"><span class="k">Total usado (histórico)</span><span class="v mono">${fmt(deuda.totalUsado)}</span></div>
       ${deuda.manualMonto > 0 ? `<div class="row-between"><span class="k">Sin registrar (manual)</span><span class="v mono">${fmt(deuda.manualMonto)}</span></div>` : ''}
       ${!deuda.configurado ? `<div class="empty-state">Configura las fechas de tu tarjeta en Ajustes para ver el cálculo automático de los gastos que registres.</div>` : `
         <div class="row-between"><span class="k">Deuda pendiente total</span><span class="v mono">${fmt(deuda.total)}</span></div>
@@ -502,6 +520,12 @@ function renderRegistrar(){
           <button type="button" class="chip ${f.medio==='efectivo'?'selected':''}" data-medio="efectivo">Efectivo</button>
           <button type="button" class="chip ${f.medio==='credito'?'selected':''}" data-medio="credito">Crédito</button>
         </div>
+        ${f.medio === 'credito' ? `
+          <div class="config-field" style="margin-top:14px;">
+            <label style="font-size:12px;color:var(--text-dim);display:block;margin-bottom:6px;">Número de cuotas</label>
+            <input type="number" min="1" id="f-cuotas" value="${f.cuotas}" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;color:var(--text);font-size:15px;outline:none;">
+          </div>
+        ` : ''}
       ` : ''}
 
       <div class="field-note field-date">
@@ -531,6 +555,8 @@ function renderRegistrar(){
   el.querySelectorAll('#f-medios .chip').forEach(b=>{
     b.onclick = ()=>{ f.medio = b.dataset.medio; render(); };
   });
+  const cuotasInput = el.querySelector('#f-cuotas');
+  if (cuotasInput) cuotasInput.oninput = (e)=> f.cuotas = e.target.value;
   el.querySelector('#f-submit').onclick = ()=>{
     if (!f.monto || Number(f.monto) <= 0){ showToast('Ingresa un monto válido'); return; }
     addGasto(f);
@@ -554,6 +580,7 @@ function renderHistorial(){
       <div class="receipt-item" data-id="${g.id}">
         <div class="left">
           <span class="cat">${g.categoria}<span class="badge ${g.tipo === 'ingreso' ? 'efectivo' : g.medio_pago}">${g.tipo === 'ingreso' ? 'ingreso' : g.medio_pago}</span></span>
+          ${g.medio_pago === 'credito' && g.cuotas > 1 ? `<span class="meta">${g.cuotas} cuotas de ${fmt(Number(g.monto)/g.cuotas)}</span>` : ''}
           ${g.nota ? `<span class="meta">${g.nota}</span>` : ''}
         </div>
         <div style="display:flex;align-items:center;">
@@ -618,6 +645,10 @@ function renderConfig(){
         <label>Fecha en que te la van a cobrar</label>
         <input type="date" id="c-deuda-manual-fecha" value="${c.deuda_manual_fecha ?? ''}">
       </div>
+      <div class="config-field">
+        <label>Ignorar gastos en crédito con fecha anterior a (ej: si ya los pagaste y no quieres que sigan sumando)</label>
+        <input type="date" id="c-ignorar-antes" value="${c.tarjeta_reiniciada_en ? c.tarjeta_reiniciada_en.slice(0,10) : ''}">
+      </div>
     </div>
 
     <button class="btn-primary" style="width:100%;" id="c-guardar">Guardar cambios</button>
@@ -634,6 +665,7 @@ function renderConfig(){
       tarjeta_pago_dia: el.querySelector('#c-pago').value ? Number(el.querySelector('#c-pago').value) : null,
       deuda_manual_monto: Number(el.querySelector('#c-deuda-manual').value || 0),
       deuda_manual_fecha: el.querySelector('#c-deuda-manual-fecha').value || null,
+      tarjeta_reiniciada_en: el.querySelector('#c-ignorar-antes').value || null,
     });
   };
   return el;
